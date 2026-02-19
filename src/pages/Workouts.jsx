@@ -19,43 +19,22 @@ export default function Workouts() {
   const phase = getPhaseForWeek(week)
   const schedule = getWeekSchedule(week)
 
-  // Check readiness on mount
-  useEffect(() => {
-    if (!user) return
-    checkReadiness()
-  }, [user])
-
+  useEffect(() => { if (user) checkReadiness() }, [user])
   useEffect(() => { if (user) loadEntries() }, [user, week])
 
   async function checkReadiness() {
-    const { data } = await supabase
-      .from('readiness_entries')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('date', today)
-      .maybeSingle()
-    if (data) {
-      setReadiness(data.score)
-      setReadinessChecked(true)
-    } else {
-      setShowReadiness(true)
-      setReadinessChecked(true)
-    }
+    const { data } = await supabase.from('readiness_entries').select('*')
+      .eq('user_id', user.id).eq('date', today).maybeSingle()
+    if (data) { setReadiness(data.score); setReadinessChecked(true) }
+    else { setShowReadiness(true); setReadinessChecked(true) }
   }
 
   async function loadEntries() {
-    const { data } = await supabase
-      .from('workout_entries')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('week_number', week)
-      .eq('date', today)
+    const { data } = await supabase.from('workout_entries').select('*')
+      .eq('user_id', user.id).eq('week_number', week).eq('date', today)
     if (data) {
       const map = {}
-      data.forEach(e => {
-        const key = `${e.exercise_name}-${e.set_number}`
-        map[key] = e
-      })
+      data.forEach(e => { map[`${e.exercise_name}-${e.set_number}`] = e })
       setEntries(map)
     }
   }
@@ -64,27 +43,16 @@ export default function Workouts() {
     const key = `${exercise.name}-${setNum}`
     const existing = entries[key]
     setSaving(true)
-
     if (existing) {
-      if (existing.completed) {
-        await supabase.from('workout_entries').update({ completed: false }).eq('id', existing.id)
-      } else {
-        await supabase.from('workout_entries').update({ completed: true }).eq('id', existing.id)
-      }
+      await supabase.from('workout_entries').update({ completed: !existing.completed }).eq('id', existing.id)
     } else {
       await supabase.from('workout_entries').insert({
-        user_id: user.id,
-        exercise_name: exercise.name,
-        day_name: dayName,
-        week_number: week,
-        set_number: setNum,
+        user_id: user.id, exercise_name: exercise.name, day_name: dayName,
+        week_number: week, set_number: setNum,
         weight: exercise.isBW ? 0 : exercise.weight,
-        reps: exercise.targetReps,
-        completed: true,
-        date: today,
+        reps: exercise.targetReps, completed: true, date: today,
       })
     }
-
     await loadEntries()
     setSaving(false)
   }
@@ -92,114 +60,86 @@ export default function Workouts() {
   async function updateEntry(exercise, setNum, field, value, dayName) {
     const key = `${exercise.name}-${setNum}`
     const existing = entries[key]
-
     if (existing) {
       await supabase.from('workout_entries').update({ [field]: Number(value) || 0 }).eq('id', existing.id)
     } else {
       await supabase.from('workout_entries').insert({
-        user_id: user.id,
-        exercise_name: exercise.name,
-        day_name: dayName,
-        week_number: week,
-        set_number: setNum,
+        user_id: user.id, exercise_name: exercise.name, day_name: dayName,
+        week_number: week, set_number: setNum,
         weight: field === 'weight' ? Number(value) || 0 : (exercise.isBW ? 0 : exercise.weight),
         reps: field === 'reps' ? Number(value) || 0 : exercise.targetReps,
-        completed: false,
-        date: today,
+        completed: false, date: today,
       })
     }
     await loadEntries()
   }
 
   if (!readinessChecked) return null
-
-  // Show readiness modal before anything else
-  if (showReadiness) {
-    return (
-      <ReadinessCheckin
-        onComplete={(score) => {
-          setReadiness(score)
-          setShowReadiness(false)
-        }}
-      />
-    )
-  }
-
+  if (showReadiness) return <ReadinessCheckin onComplete={(score) => { setReadiness(score); setShowReadiness(false) }} />
   if (!schedule) return null
   const day = schedule[selectedDay]
 
   return (
-    <div className="px-4 pt-6 max-w-lg mx-auto">
-      <h1 className="text-2xl font-bold mb-1">Workouts</h1>
-      <p className="text-slate-400 text-sm mb-4">
-        Week {week} &middot; Phase {phase.phase}: {phase.name} &middot; RPE {phase.rpe}
+    <div className="px-5 pt-8 max-w-lg mx-auto animate-fade-in">
+      <div className="flex items-center justify-between mb-1">
+        <h1 className="text-2xl font-extrabold tracking-tight">Workouts</h1>
         {readiness !== null && (
-          <span className={`ml-2 inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
-            readiness <= 2 ? 'bg-red-500/20 text-red-400' :
-            readiness <= 3 ? 'bg-amber-500/20 text-amber-400' :
-            readiness <= 4 ? 'bg-blue-500/20 text-blue-400' :
-            'bg-green-500/20 text-green-400'
+          <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+            readiness <= 2 ? 'bg-red-500/15 text-red-400' :
+            readiness <= 3 ? 'bg-amber-500/15 text-amber-400' :
+            readiness <= 4 ? 'bg-blue-500/15 text-blue-400' :
+            'bg-emerald-500/15 text-emerald-400'
           }`}>
             Readiness {readiness}
           </span>
         )}
+      </div>
+      <p className="text-slate-500 text-sm mb-5">
+        Phase {phase.phase}: {phase.name} &middot; RPE {phase.rpe}
       </p>
 
-      {/* Week Selector */}
-      <div className="flex gap-1.5 mb-4 overflow-x-auto pb-1 scrollbar-hide">
+      {/* Week pills */}
+      <div className="flex gap-1.5 mb-5 overflow-x-auto pb-1 scrollbar-hide">
         {[1,2,3,4,5,6,7,8].map(w => (
-          <button
-            key={w}
-            onClick={() => setWeek(w)}
-            className={`flex-shrink-0 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-              week === w ? 'bg-accent text-white' : 'bg-navy-800 text-slate-400 hover:text-white'
-            }`}
-          >
-            W{w}
+          <button key={w} onClick={() => setWeek(w)}
+            className={`flex-shrink-0 w-11 h-11 rounded-2xl text-sm font-bold transition-all duration-200 ${
+              week === w ? 'bg-accent text-white shadow-lg shadow-accent/20' : 'bg-surface text-slate-500 border border-surface-border hover:text-white'
+            }`}>
+            {w}
           </button>
         ))}
       </div>
 
-      {/* Day Tabs */}
-      <div className="flex gap-1.5 mb-6 overflow-x-auto pb-1">
-        {schedule.map((d, i) => (
-          <button
-            key={i}
-            onClick={() => setSelectedDay(i)}
-            className={`flex-shrink-0 px-3 py-2.5 rounded-xl text-xs font-medium transition-colors ${
-              selectedDay === i ? 'bg-navy-700 text-white' : 'bg-navy-800 text-slate-400'
-            }`}
-          >
-            {d.name}
-          </button>
-        ))}
+      {/* Day tabs */}
+      <div className="flex gap-2 mb-6 overflow-x-auto pb-1 scrollbar-hide">
+        {schedule.map((d, i) => {
+          const dayEntries = d.exercises.reduce((sum, ex) => {
+            const sets = Array.from({ length: ex.sets }, (_, s) => s + 1)
+            return sum + sets.filter(s => entries[`${ex.name}-${s}`]?.completed).length
+          }, 0)
+          const totalSets = d.exercises.reduce((sum, ex) => sum + ex.sets, 0)
+          return (
+            <button key={i} onClick={() => setSelectedDay(i)}
+              className={`flex-shrink-0 px-4 py-3 rounded-2xl transition-all duration-200 text-left ${
+                selectedDay === i ? 'bg-surface-elevated border border-accent/30' : 'bg-surface border border-surface-border'
+              }`}>
+              <p className={`text-xs font-bold ${selectedDay === i ? 'text-accent' : 'text-slate-400'}`}>Day {d.dayNumber}</p>
+              <p className={`text-[11px] mt-0.5 ${selectedDay === i ? 'text-slate-300' : 'text-slate-600'}`}>
+                {d.name.split('(')[0].trim()}
+              </p>
+              {dayEntries > 0 && (
+                <p className="text-[10px] text-accent mt-1">{dayEntries}/{totalSets}</p>
+              )}
+            </button>
+          )
+        })}
       </div>
 
-      {/* Phase Info */}
-      <div className="bg-navy-800 rounded-xl p-4 mb-4 flex items-center justify-between">
-        <div>
-          <p className="text-sm text-slate-400">Phase {phase.phase}</p>
-          <p className="font-semibold">{phase.name}</p>
-        </div>
-        <div className="text-right">
-          <p className="text-sm text-slate-400">RPE Target</p>
-          <p className="font-semibold">{phase.rpe}</p>
-        </div>
-      </div>
-
-      {/* Exercises */}
+      {/* Exercise cards */}
       <div className="space-y-4 mb-8">
         {day.exercises.map((exercise) => (
-          <ExerciseCard
-            key={exercise.id}
-            exercise={exercise}
-            week={week}
-            dayName={day.name}
-            entries={entries}
-            onToggle={toggleSet}
-            onUpdate={updateEntry}
-            saving={saving}
-          />
+          <ExerciseCard key={exercise.id} exercise={exercise} week={week} dayName={day.name}
+            entries={entries} onToggle={toggleSet} onUpdate={updateEntry} saving={saving} />
         ))}
       </div>
     </div>
@@ -210,47 +150,46 @@ function ExerciseCard({ exercise, week, dayName, entries, onToggle, onUpdate, sa
   const [showProgress, setShowProgress] = useState(false)
   const sets = Array.from({ length: exercise.sets }, (_, i) => i + 1)
   const completedCount = sets.filter(s => entries[`${exercise.name}-${s}`]?.completed).length
+  const allDone = completedCount === exercise.sets
   const targetDisplay = exercise.isBW ? 'BW' : `${exercise.weight} lbs`
 
   return (
-    <div className="bg-navy-800 rounded-2xl p-4">
-      <div className="flex items-center justify-between mb-1">
-        <div>
-          <h3 className="font-semibold">{exercise.name}</h3>
-          <p className="text-xs text-slate-400">{exercise.muscle} &middot; {exercise.equipment}</p>
+    <div className={`bg-surface rounded-3xl p-5 border transition-all duration-300 ${allDone ? 'border-success/30' : 'border-surface-border'}`}>
+      {/* Header */}
+      <div className="flex items-start justify-between mb-1">
+        <div className="flex-1 min-w-0">
+          <h3 className="font-bold text-[15px] truncate">{exercise.name}</h3>
+          <p className="text-xs text-slate-600 mt-0.5">{exercise.muscle} &middot; {exercise.equipment}</p>
         </div>
-        <span className="text-xs bg-navy-700 px-2.5 py-1 rounded-full text-slate-300">
+        <div className={`ml-3 px-2.5 py-1 rounded-full text-[11px] font-bold ${
+          allDone ? 'bg-success/15 text-success' : 'bg-surface-elevated text-slate-500'
+        }`}>
           {completedCount}/{exercise.sets}
-        </span>
+        </div>
       </div>
 
-      {/* Target info row */}
-      <div className="flex gap-3 text-xs text-slate-400 mb-3">
-        <span>Target: {targetDisplay} x {exercise.targetReps}</span>
-        <span>Rest: {exercise.restSeconds}s</span>
-        <button
-          onClick={() => setShowProgress(p => !p)}
-          className="ml-auto text-accent hover:text-blue-400 transition-colors"
-        >
+      {/* Target row */}
+      <div className="flex items-center gap-4 text-xs text-slate-500 mb-4 mt-2">
+        <span className="bg-surface-elevated px-2 py-1 rounded-lg font-medium">{targetDisplay} x {exercise.targetReps}</span>
+        <span className="bg-surface-elevated px-2 py-1 rounded-lg font-medium">Rest {exercise.restSeconds}s</span>
+        <button onClick={() => setShowProgress(p => !p)}
+          className="ml-auto text-accent text-[11px] font-semibold hover:text-accent-light transition-colors min-h-[28px] flex items-center">
           {showProgress ? 'Hide' : 'Progress'}
         </button>
       </div>
 
-      {/* Inline progress: weight by week */}
+      {/* Progress inline */}
       {showProgress && (
-        <div className="mb-3 bg-navy-900 rounded-lg p-3">
-          <p className="text-[10px] text-slate-500 mb-1.5 uppercase tracking-wide">Target Weight by Week</p>
+        <div className="mb-4 bg-base rounded-2xl p-3">
+          <p className="text-[10px] text-slate-600 mb-2 uppercase tracking-wider font-semibold">Target by Week</p>
           <div className="flex gap-1">
             {[1,2,3,4,5,6,7,8].map(w => {
               const wt = getTargetWeight(exercise, w)
               return (
-                <div
-                  key={w}
-                  className={`flex-1 text-center py-1 rounded text-xs ${
-                    w === week ? 'bg-accent text-white font-bold' : 'bg-navy-800 text-slate-400'
-                  }`}
-                >
-                  <div className="text-[9px]">W{w}</div>
+                <div key={w} className={`flex-1 text-center py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                  w === week ? 'bg-accent text-white' : 'bg-surface text-slate-500'
+                }`}>
+                  <div className="text-[9px] opacity-60">W{w}</div>
                   <div>{wt}</div>
                 </div>
               )
@@ -259,50 +198,46 @@ function ExerciseCard({ exercise, week, dayName, entries, onToggle, onUpdate, sa
         </div>
       )}
 
-      <div className="space-y-2">
+      {/* Sets */}
+      <div className="space-y-2.5">
         {sets.map(setNum => {
           const key = `${exercise.name}-${setNum}`
           const entry = entries[key]
           const completed = entry?.completed
 
           return (
-            <div key={setNum} className="flex items-center gap-2">
-              <button
-                onClick={() => onToggle(exercise, setNum, dayName)}
-                disabled={saving}
-                className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${
-                  completed ? 'bg-success text-white' : 'bg-navy-700 text-slate-500'
-                }`}
-              >
+            <div key={setNum} className="flex items-center gap-2.5">
+              {/* Tap-to-complete circle */}
+              <button onClick={() => onToggle(exercise, setNum, dayName)} disabled={saving}
+                className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-all duration-200 min-w-[40px] ${
+                  completed ? 'bg-success text-white shadow-md shadow-success/20' : 'bg-surface-elevated text-slate-600 hover:text-white active:scale-90'
+                }`}>
                 {completed ? (
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                   </svg>
                 ) : (
-                  <span className="text-xs font-bold">{setNum}</span>
+                  <span className="text-sm font-bold">{setNum}</span>
                 )}
               </button>
 
+              {/* Inputs */}
               <div className="flex-1 flex gap-2">
                 <div className="flex-1 relative">
-                  <input
-                    type="number"
+                  <input type="number"
                     placeholder={exercise.isBW ? 'BW' : String(exercise.weight)}
                     value={entry?.weight || ''}
                     onChange={e => onUpdate(exercise, setNum, 'weight', e.target.value, dayName)}
-                    className="w-full px-3 py-2 bg-navy-900 border border-navy-700 rounded-lg text-white text-sm text-center focus:outline-none focus:ring-1 focus:ring-accent"
-                  />
-                  <span className="absolute right-2 top-2.5 text-[10px] text-slate-500">lbs</span>
+                    className="w-full px-3 py-2.5 bg-base border border-surface-border rounded-xl text-white text-sm text-center focus:ring-1 focus:ring-accent/50 focus:border-accent/30 transition-all" />
+                  <span className="absolute right-2 top-3 text-[10px] text-slate-600">lbs</span>
                 </div>
                 <div className="flex-1 relative">
-                  <input
-                    type="number"
+                  <input type="number"
                     placeholder={String(exercise.targetReps)}
                     value={entry?.reps || ''}
                     onChange={e => onUpdate(exercise, setNum, 'reps', e.target.value, dayName)}
-                    className="w-full px-3 py-2 bg-navy-900 border border-navy-700 rounded-lg text-white text-sm text-center focus:outline-none focus:ring-1 focus:ring-accent"
-                  />
-                  <span className="absolute right-2 top-2.5 text-[10px] text-slate-500">reps</span>
+                    className="w-full px-3 py-2.5 bg-base border border-surface-border rounded-xl text-white text-sm text-center focus:ring-1 focus:ring-accent/50 focus:border-accent/30 transition-all" />
+                  <span className="absolute right-2 top-3 text-[10px] text-slate-600">reps</span>
                 </div>
               </div>
 

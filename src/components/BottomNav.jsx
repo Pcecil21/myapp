@@ -6,6 +6,7 @@ const tabs = [
   { to: '/meals', label: 'Meals', icon: MealIcon },
   { to: '/trends', label: 'Trends', icon: TrendIcon },
   { to: '/body', label: 'Body', icon: BodyIcon },
+  { to: '/supplements', label: 'Supps', icon: SupplementIcon },
   { to: '/settings', label: 'Settings', icon: SettingsIcon },
 ]
 
@@ -19,7 +20,7 @@ export default function BottomNav() {
             to={to}
             end={to === '/'}
             className={({ isActive }) =>
-              `flex flex-col items-center justify-center gap-1 min-w-[48px] min-h-[44px] px-1.5 py-1.5 rounded-2xl transition-all duration-200 ${
+              `flex flex-col items-center justify-center gap-1 min-w-[42px] min-h-[44px] px-1 py-1.5 rounded-2xl transition-all duration-200 ${
                 isActive
                   ? 'text-accent'
                   : 'text-slate-500 hover:text-slate-300 active:scale-95'
@@ -97,6 +98,18 @@ function BodyIcon({ filled }) {
   ) : (
     <svg className="w-6 h-6 relative" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v17.25m0 0c-1.472 0-2.882.265-4.185.75M12 20.25c1.472 0 2.882.265 4.185.75M18.75 4.97A48.416 48.416 0 0012 4.5c-2.291 0-4.545.16-6.75.47m13.5 0c1.01.143 2.01.317 3 .52m-3-.52l2.62 10.726c.122.499-.106 1.028-.589 1.202a5.988 5.988 0 01-2.031.352 5.988 5.988 0 01-2.031-.352c-.483-.174-.711-.703-.59-1.202L18.75 4.971zm-16.5.52c.99-.203 1.99-.377 3-.52m0 0l2.62 10.726c.122.499-.106 1.028-.589 1.202a5.989 5.989 0 01-2.031.352 5.989 5.989 0 01-2.031-.352c-.483-.174-.711-.703-.59-1.202L5.25 4.971z" />
+    </svg>
+  )
+}
+
+function SupplementIcon({ filled }) {
+  return filled ? (
+    <svg className="w-6 h-6 relative" viewBox="0 0 24 24" fill="currentColor">
+      <path fillRule="evenodd" d="M10.5 3.798v5.02a3 3 0 01-.879 2.121l-2.377 2.377a9.845 9.845 0 015.091 1.013 8.315 8.315 0 005.713.636l.285-.071-3.954-3.955a3 3 0 01-.879-2.121v-5.02a23.614 23.614 0 00-3 0zm4.5.138a.75.75 0 00.093-1.495A24.837 24.837 0 0012 2.25a25.048 25.048 0 00-3.093.191A.75.75 0 009 3.936v4.882a1.5 1.5 0 01-.44 1.06l-6.293 6.294c-1.62 1.621-.903 4.475 1.471 4.88 2.686.46 5.447.698 8.262.698 2.816 0 5.576-.239 8.262-.697 2.373-.406 3.092-3.26 1.471-4.881L15.44 9.879A1.5 1.5 0 0115 8.818V3.936z" clipRule="evenodd" />
+    </svg>
+  ) : (
+    <svg className="w-6 h-6 relative" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M5 14.5l-1.733 1.733c-1.216 1.216-.593 3.382 1.11 3.674 2.55.437 5.17.662 7.823.662 2.652 0 5.273-.225 7.823-.662 1.703-.292 2.326-2.458 1.11-3.674L19.8 15.3M5 14.5l4.049-4.049M19.8 15.3l-4.341-4.341m0 0L9.049 10.45" />
     </svg>
   )
 }

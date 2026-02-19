@@ -8,6 +8,7 @@ import Meals from './pages/Meals'
 import Trends from './pages/Trends'
 import BodyWeight from './pages/BodyWeight'
 import Settings from './pages/Settings'
+import Supplements from './pages/Supplements'
 import { useAuth } from './contexts/AuthContext'
 
 export default function App() {
@@ -23,6 +24,7 @@ export default function App() {
           <Route path="/meals" element={<ProtectedRoute><Meals /></ProtectedRoute>} />
           <Route path="/trends" element={<ProtectedRoute><Trends /></ProtectedRoute>} />
           <Route path="/body" element={<ProtectedRoute><BodyWeight /></ProtectedRoute>} />
+          <Route path="/supplements" element={<ProtectedRoute><Supplements /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
         </Routes>
       </main>

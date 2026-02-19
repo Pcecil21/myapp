@@ -166,3 +166,52 @@ create policy "Users can update own body weight"
   on body_weight_entries for update using (auth.uid() = user_id);
 create policy "Users can delete own body weight"
   on body_weight_entries for delete using (auth.uid() = user_id);
+
+-- ============================================================
+-- 7. Supplements (user's master supplement list)
+-- ============================================================
+create table supplements (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete cascade not null,
+  name text not null,
+  dosage text,
+  brand text,
+  active boolean default true,
+  sort_order integer default 0,
+  created_at timestamptz default now()
+);
+
+alter table supplements enable row level security;
+
+create policy "Users can view own supplements"
+  on supplements for select using (auth.uid() = user_id);
+create policy "Users can insert own supplements"
+  on supplements for insert with check (auth.uid() = user_id);
+create policy "Users can update own supplements"
+  on supplements for update using (auth.uid() = user_id);
+create policy "Users can delete own supplements"
+  on supplements for delete using (auth.uid() = user_id);
+
+-- ============================================================
+-- 8. Supplement Logs (daily per-supplement check-in)
+-- ============================================================
+create table supplement_logs (
+  id uuid primary key default gen_random_uuid(),
+  supplement_id uuid references supplements(id) on delete cascade not null,
+  user_id uuid references auth.users(id) on delete cascade not null,
+  date date default current_date,
+  taken boolean default false,
+  created_at timestamptz default now(),
+  unique(supplement_id, date)
+);
+
+alter table supplement_logs enable row level security;
+
+create policy "Users can view own supplement logs"
+  on supplement_logs for select using (auth.uid() = user_id);
+create policy "Users can insert own supplement logs"
+  on supplement_logs for insert with check (auth.uid() = user_id);
+create policy "Users can update own supplement logs"
+  on supplement_logs for update using (auth.uid() = user_id);
+create policy "Users can delete own supplement logs"
+  on supplement_logs for delete using (auth.uid() = user_id);

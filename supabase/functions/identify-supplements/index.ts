@@ -45,7 +45,7 @@ serve(async (req) => {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-5-20241022",
+        model: "claude-sonnet-4-6",
         max_tokens: 1024,
         messages: [
           {
@@ -74,7 +74,7 @@ If dosage or brand is not visible, use null for that field. If no supplements ar
     const data = await response.json()
 
     if (!response.ok) {
-      return new Response(JSON.stringify({ error: "Claude API error", details: data }), {
+      return new Response(JSON.stringify({ error: "Claude API error: " + (data?.error?.message || JSON.stringify(data)) }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       })

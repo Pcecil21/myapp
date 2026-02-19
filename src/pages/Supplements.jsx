@@ -167,15 +167,19 @@ export default function Supplements() {
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${session.access_token}`,
+            apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
           },
           body: JSON.stringify({ image: imageBase64 }),
         }
       )
-      const result = await res.json()
+      const text = await res.text()
+      let result
+      try { result = JSON.parse(text) } catch { alert('Invalid response: ' + text); setIdentifying(false); return }
+      if (!res.ok) { alert('Function error (' + res.status + '): ' + (result.error || text)); setIdentifying(false); return }
       if (result.supplements) {
         setScanResults(result.supplements)
       } else {
-        alert(result.error || 'Failed to identify supplements')
+        alert('Unexpected response: ' + JSON.stringify(result))
       }
     } catch (err) {
       alert('Error calling identify function: ' + err.message)

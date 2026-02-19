@@ -31,9 +31,16 @@ export default function Login() {
     if (password !== confirmPassword) { setError('Passwords do not match'); return }
     setLoading(true)
     const { data, error } = await signUp(email, password)
+    // If signup returned a session, auth listener handles it — we're done
+    if (!error && data?.session) { setLoading(false); return }
+    // If user already exists, try signing in instead
+    if (error) {
+      const { error: loginError } = await signInWithPassword(email, password)
+      setLoading(false)
+      if (loginError) setError('Account may already exist. Try signing in instead.')
+      return
+    }
     setLoading(false)
-    if (error) setError(error.message)
-    else if (data?.user && !data.session) setSignupSuccess(true)
   }
 
   const handleMagicLink = async (e) => {

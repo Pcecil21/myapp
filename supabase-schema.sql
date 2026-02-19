@@ -141,3 +141,28 @@ create policy "Users can insert own readiness"
   on readiness_entries for insert with check (auth.uid() = user_id);
 create policy "Users can update own readiness"
   on readiness_entries for update using (auth.uid() = user_id);
+
+-- ============================================================
+-- 6. Body Weight Entries (daily weight & body fat tracking)
+-- ============================================================
+create table body_weight_entries (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete cascade not null,
+  weight_lbs numeric(5,1) not null,
+  body_fat_pct numeric(4,1),
+  notes text,
+  date date default current_date,
+  created_at timestamptz default now(),
+  unique(user_id, date)
+);
+
+alter table body_weight_entries enable row level security;
+
+create policy "Users can view own body weight"
+  on body_weight_entries for select using (auth.uid() = user_id);
+create policy "Users can insert own body weight"
+  on body_weight_entries for insert with check (auth.uid() = user_id);
+create policy "Users can update own body weight"
+  on body_weight_entries for update using (auth.uid() = user_id);
+create policy "Users can delete own body weight"
+  on body_weight_entries for delete using (auth.uid() = user_id);

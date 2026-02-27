@@ -114,8 +114,8 @@ export default function Workouts() {
     setSaving(false)
   }
 
-  async function fillAllSets(exercise, dayName) {
-    const weight = exercise.isBW ? 0 : exercise.weight
+  async function fillAllSets(exercise, dayName, customWeight) {
+    const weight = exercise.isBW ? 0 : (customWeight ?? exercise.weight)
     const sets = Array.from({ length: exercise.sets }, (_, i) => i + 1)
     setSaving(true)
     for (const setNum of sets) {
@@ -247,6 +247,7 @@ export default function Workouts() {
 
 function ExerciseCard({ exercise, week, dayName, entries, onToggle, onUpdate, onFillAll, saving, onSwapClick, isSwapped }) {
   const [showProgress, setShowProgress] = useState(false)
+  const [fillWeight, setFillWeight] = useState('')
   const sets = Array.from({ length: exercise.sets }, (_, i) => i + 1)
   const completedCount = sets.filter(s => entries[`${exercise.name}-${s}`]?.completed).length
   const allDone = completedCount === exercise.sets
@@ -288,13 +289,20 @@ function ExerciseCard({ exercise, week, dayName, entries, onToggle, onUpdate, on
         <span className="bg-surface-elevated px-2 py-1 rounded-lg font-medium">{targetDisplay} x {exercise.targetReps}</span>
         <span className="bg-surface-elevated px-2 py-1 rounded-lg font-medium">Rest {exercise.restSeconds}s</span>
         {!exercise.isBW && (
-          <button onClick={() => onFillAll(exercise, dayName)}
-            className="text-accent text-[11px] font-semibold hover:text-accent-light transition-colors min-h-[28px] flex items-center gap-1">
-            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 13.5L12 21m0 0l-7.5-7.5M12 21V3" />
-            </svg>
-            Fill all
-          </button>
+          <div className="flex items-center gap-1.5">
+            <input type="number"
+              placeholder={String(exercise.weight)}
+              value={fillWeight}
+              onChange={e => setFillWeight(e.target.value)}
+              className="w-16 px-2 py-1 bg-base border border-surface-border rounded-lg text-white text-[11px] text-center focus:ring-1 focus:ring-accent/50 focus:border-accent/30 transition-all" />
+            <button onClick={() => onFillAll(exercise, dayName, Number(fillWeight) || exercise.weight)} disabled={saving}
+              className="text-accent text-[11px] font-semibold hover:text-accent-light transition-colors min-h-[28px] flex items-center gap-1">
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 13.5L12 21m0 0l-7.5-7.5M12 21V3" />
+              </svg>
+              Fill all
+            </button>
+          </div>
         )}
         <button onClick={() => setShowProgress(p => !p)}
           className="ml-auto text-accent text-[11px] font-semibold hover:text-accent-light transition-colors min-h-[28px] flex items-center">

@@ -114,6 +114,27 @@ export default function Workouts() {
     setSaving(false)
   }
 
+  async function fillAllSets(exercise, dayName) {
+    const weight = exercise.isBW ? 0 : exercise.weight
+    const sets = Array.from({ length: exercise.sets }, (_, i) => i + 1)
+    setSaving(true)
+    for (const setNum of sets) {
+      const key = `${exercise.name}-${setNum}`
+      const existing = entries[key]
+      if (existing) {
+        await supabase.from('workout_entries').update({ weight }).eq('id', existing.id)
+      } else {
+        await supabase.from('workout_entries').insert({
+          user_id: user.id, exercise_name: exercise.name, day_name: dayName,
+          week_number: week, set_number: setNum,
+          weight, reps: exercise.targetReps, completed: false, date: today,
+        })
+      }
+    }
+    await loadEntries()
+    setSaving(false)
+  }
+
   async function updateEntry(exercise, setNum, field, value, dayName) {
     const key = `${exercise.name}-${setNum}`
     const existing = entries[key]
@@ -200,7 +221,7 @@ export default function Workouts() {
       <div className="space-y-4 mb-8">
         {resolvedExercises.map((exercise) => (
           <ExerciseCard key={exercise._originalId || exercise.id} exercise={exercise} week={week} dayName={day.name}
-            entries={entries} onToggle={toggleSet} onUpdate={updateEntry} saving={saving}
+            entries={entries} onToggle={toggleSet} onUpdate={updateEntry} onFillAll={fillAllSets} saving={saving}
             onSwapClick={() => {
               // Pass the original PROGRAM exercise (with substitutes) to the modal
               const origId = exercise._originalId || exercise.id
@@ -224,7 +245,7 @@ export default function Workouts() {
   )
 }
 
-function ExerciseCard({ exercise, week, dayName, entries, onToggle, onUpdate, saving, onSwapClick, isSwapped }) {
+function ExerciseCard({ exercise, week, dayName, entries, onToggle, onUpdate, onFillAll, saving, onSwapClick, isSwapped }) {
   const [showProgress, setShowProgress] = useState(false)
   const sets = Array.from({ length: exercise.sets }, (_, i) => i + 1)
   const completedCount = sets.filter(s => entries[`${exercise.name}-${s}`]?.completed).length
@@ -263,9 +284,18 @@ function ExerciseCard({ exercise, week, dayName, entries, onToggle, onUpdate, sa
       </div>
 
       {/* Target row */}
-      <div className="flex items-center gap-4 text-xs text-slate-500 mb-4 mt-2">
+      <div className="flex items-center gap-3 text-xs text-slate-500 mb-4 mt-2 flex-wrap">
         <span className="bg-surface-elevated px-2 py-1 rounded-lg font-medium">{targetDisplay} x {exercise.targetReps}</span>
         <span className="bg-surface-elevated px-2 py-1 rounded-lg font-medium">Rest {exercise.restSeconds}s</span>
+        {!exercise.isBW && (
+          <button onClick={() => onFillAll(exercise, dayName)}
+            className="text-accent text-[11px] font-semibold hover:text-accent-light transition-colors min-h-[28px] flex items-center gap-1">
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 13.5L12 21m0 0l-7.5-7.5M12 21V3" />
+            </svg>
+            Fill all
+          </button>
+        )}
         <button onClick={() => setShowProgress(p => !p)}
           className="ml-auto text-accent text-[11px] font-semibold hover:text-accent-light transition-colors min-h-[28px] flex items-center">
           {showProgress ? 'Hide' : 'Progress'}

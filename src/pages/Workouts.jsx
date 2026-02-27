@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import { SPLIT, PHASES, getPhaseForWeek, getWeekSchedule, getTargetWeight, getAllExercises } from '../lib/workoutProgram'
+import { PROGRAM, SPLIT, PHASES, getPhaseForWeek, getWeekSchedule, getTargetWeight, getSetsForExercise, getAllExercises } from '../lib/workoutProgram'
 import RestTimer from '../components/RestTimer'
 import ReadinessCheckin from '../components/ReadinessCheckin'
+import SwapModal from '../components/SwapModal'
 
 export default function Workouts() {
   const { user } = useAuth()
@@ -15,12 +16,15 @@ export default function Workouts() {
   const [showReadiness, setShowReadiness] = useState(false)
   const [readiness, setReadiness] = useState(null)
   const [readinessChecked, setReadinessChecked] = useState(false)
+  const [swaps, setSwaps] = useState({})          // { originalExerciseId: { substitute_exercise_id, substitute_name } }
+  const [swapModalExercise, setSwapModalExercise] = useState(null)
   const today = format(new Date(), 'yyyy-MM-dd')
   const phase = getPhaseForWeek(week)
   const schedule = getWeekSchedule(week)
 
   useEffect(() => { if (user) checkReadiness() }, [user])
   useEffect(() => { if (user) loadEntries() }, [user, week])
+  useEffect(() => { if (user) loadSwaps() }, [user])
 
   async function checkReadiness() {
     const { data } = await supabase.from('readiness_entries').select('*')
@@ -36,6 +40,59 @@ export default function Workouts() {
       const map = {}
       data.forEach(e => { map[`${e.exercise_name}-${e.set_number}`] = e })
       setEntries(map)
+    }
+  }
+
+  async function loadSwaps() {
+    const { data } = await supabase.from('exercise_swaps').select('*')
+      .eq('user_id', user.id)
+    if (data) {
+      const map = {}
+      data.forEach(s => { map[s.original_exercise_id] = s })
+      setSwaps(map)
+    }
+  }
+
+  async function handleSwap(originalId, substitute) {
+    const { error } = await supabase.from('exercise_swaps').upsert({
+      user_id: user.id,
+      original_exercise_id: originalId,
+      substitute_exercise_id: substitute.id,
+      substitute_name: substitute.name,
+    }, { onConflict: 'user_id,original_exercise_id' })
+    if (!error) {
+      setSwaps(prev => ({ ...prev, [originalId]: { substitute_exercise_id: substitute.id, substitute_name: substitute.name } }))
+    }
+    setSwapModalExercise(null)
+  }
+
+  async function handleResetSwap(originalId) {
+    await supabase.from('exercise_swaps').delete()
+      .eq('user_id', user.id).eq('original_exercise_id', originalId)
+    setSwaps(prev => {
+      const next = { ...prev }
+      delete next[originalId]
+      return next
+    })
+    setSwapModalExercise(null)
+  }
+
+  /** Resolve an exercise — apply swap if one exists, inheriting original's progression */
+  function resolveExercise(original) {
+    const swap = swaps[original.id]
+    if (!swap) return original
+    // Find the substitute definition from the original's substitutes array
+    const subDef = original.substitutes?.find(s => s.id === swap.substitute_exercise_id)
+    return {
+      ...original,
+      // Override display fields from substitute
+      name: subDef?.name || swap.substitute_name,
+      muscle: subDef?.muscle || original.muscle,
+      equipment: subDef?.equipment || original.equipment,
+      description: subDef?.description || '',
+      // Keep original's id so we can still find the swap mapping
+      _originalId: original.id,
+      _isSwapped: true,
     }
   }
 
@@ -79,6 +136,9 @@ export default function Workouts() {
   if (!schedule) return null
   const day = schedule[selectedDay]
 
+  // Apply swaps to today's exercises
+  const resolvedExercises = day.exercises.map(resolveExercise)
+
   return (
     <div className="px-5 pt-8 max-w-lg mx-auto animate-fade-in">
       <div className="flex items-center justify-between mb-1">
@@ -113,11 +173,12 @@ export default function Workouts() {
       {/* Day tabs */}
       <div className="flex gap-2 mb-6 overflow-x-auto pb-1 scrollbar-hide">
         {schedule.map((d, i) => {
-          const dayEntries = d.exercises.reduce((sum, ex) => {
+          const dayExercises = d.exercises.map(resolveExercise)
+          const dayEntries = dayExercises.reduce((sum, ex) => {
             const sets = Array.from({ length: ex.sets }, (_, s) => s + 1)
             return sum + sets.filter(s => entries[`${ex.name}-${s}`]?.completed).length
           }, 0)
-          const totalSets = d.exercises.reduce((sum, ex) => sum + ex.sets, 0)
+          const totalSets = dayExercises.reduce((sum, ex) => sum + ex.sets, 0)
           return (
             <button key={i} onClick={() => setSelectedDay(i)}
               className={`flex-shrink-0 px-4 py-3 rounded-2xl transition-all duration-200 text-left ${
@@ -137,16 +198,33 @@ export default function Workouts() {
 
       {/* Exercise cards */}
       <div className="space-y-4 mb-8">
-        {day.exercises.map((exercise) => (
-          <ExerciseCard key={exercise.id} exercise={exercise} week={week} dayName={day.name}
-            entries={entries} onToggle={toggleSet} onUpdate={updateEntry} saving={saving} />
+        {resolvedExercises.map((exercise) => (
+          <ExerciseCard key={exercise._originalId || exercise.id} exercise={exercise} week={week} dayName={day.name}
+            entries={entries} onToggle={toggleSet} onUpdate={updateEntry} saving={saving}
+            onSwapClick={() => {
+              // Pass the original PROGRAM exercise (with substitutes) to the modal
+              const origId = exercise._originalId || exercise.id
+              setSwapModalExercise(PROGRAM[origId])
+            }}
+            isSwapped={!!exercise._isSwapped} />
         ))}
       </div>
+
+      {/* Swap modal */}
+      {swapModalExercise && (
+        <SwapModal
+          exercise={swapModalExercise}
+          isSwapped={!!swaps[swapModalExercise.id]}
+          onSwap={handleSwap}
+          onReset={handleResetSwap}
+          onClose={() => setSwapModalExercise(null)}
+        />
+      )}
     </div>
   )
 }
 
-function ExerciseCard({ exercise, week, dayName, entries, onToggle, onUpdate, saving }) {
+function ExerciseCard({ exercise, week, dayName, entries, onToggle, onUpdate, saving, onSwapClick, isSwapped }) {
   const [showProgress, setShowProgress] = useState(false)
   const sets = Array.from({ length: exercise.sets }, (_, i) => i + 1)
   const completedCount = sets.filter(s => entries[`${exercise.name}-${s}`]?.completed).length
@@ -158,13 +236,29 @@ function ExerciseCard({ exercise, week, dayName, entries, onToggle, onUpdate, sa
       {/* Header */}
       <div className="flex items-start justify-between mb-1">
         <div className="flex-1 min-w-0">
-          <h3 className="font-bold text-[15px] truncate">{exercise.name}</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="font-bold text-[15px] truncate">{exercise.name}</h3>
+            {isSwapped && (
+              <span className="flex-shrink-0 px-1.5 py-0.5 rounded-md bg-accent/15 text-accent text-[9px] font-bold uppercase tracking-wider">
+                Swapped
+              </span>
+            )}
+          </div>
           <p className="text-xs text-slate-600 mt-0.5">{exercise.muscle} &middot; {exercise.equipment}</p>
         </div>
-        <div className={`ml-3 px-2.5 py-1 rounded-full text-[11px] font-bold ${
-          allDone ? 'bg-success/15 text-success' : 'bg-surface-elevated text-slate-500'
-        }`}>
-          {completedCount}/{exercise.sets}
+        <div className="flex items-center gap-2 ml-3">
+          {/* Swap button */}
+          <button onClick={onSwapClick} title="Swap exercise"
+            className="w-8 h-8 rounded-xl bg-surface-elevated flex items-center justify-center text-slate-500 hover:text-accent transition-colors">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+            </svg>
+          </button>
+          <div className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${
+            allDone ? 'bg-success/15 text-success' : 'bg-surface-elevated text-slate-500'
+          }`}>
+            {completedCount}/{exercise.sets}
+          </div>
         </div>
       </div>
 

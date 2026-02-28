@@ -3,6 +3,7 @@ import { format } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { scoreBadge } from '../components/ReadinessCheckin'
+import { getTodayWhoopData, getWhoopConnection, syncWhoopData } from '../lib/whoop'
 
 function getGreeting() {
   const h = new Date().getHours()
@@ -18,6 +19,7 @@ export default function Dashboard() {
   const [workoutEntries, setWorkoutEntries] = useState([])
   const [readiness, setReadiness] = useState(null)
   const [latestWeight, setLatestWeight] = useState(null)
+  const [whoopData, setWhoopData] = useState(null)
   const today = format(new Date(), 'yyyy-MM-dd')
 
   useEffect(() => { if (user) loadData() }, [user])
@@ -35,6 +37,14 @@ export default function Dashboard() {
     if (workoutRes.data) setWorkoutEntries(workoutRes.data)
     if (readinessRes.data) setReadiness(readinessRes.data)
     if (weightRes.data) setLatestWeight(weightRes.data)
+
+    // Load Whoop data if connected
+    const connected = await getWhoopConnection(user.id)
+    if (connected) {
+      try { await syncWhoopData(user.id) } catch {}
+      const whoop = await getTodayWhoopData(user.id)
+      if (whoop) setWhoopData(whoop)
+    }
   }
 
   const totals = meals.reduce(
@@ -95,6 +105,99 @@ export default function Dashboard() {
                 <span className="text-xs text-slate-500">Energy {readiness.energy}/5</span>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Whoop Recovery & Strain */}
+      {whoopData && (
+        <div className="bg-surface rounded-3xl p-5 mb-4 border border-surface-border">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
+              <svg className="w-5 h-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" />
+              </svg>
+            </div>
+            <h2 className="font-bold text-[15px]">Whoop</h2>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            {whoopData.recovery_score != null && (
+              <div className="bg-base rounded-2xl p-3.5">
+                <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Recovery</p>
+                <p className="text-xl font-extrabold">
+                  {Math.round(whoopData.recovery_score)}
+                  <span className="text-xs text-slate-500 font-medium ml-0.5">%</span>
+                </p>
+                <div className="w-full bg-surface-elevated rounded-full h-1.5 mt-2">
+                  <div
+                    className="h-1.5 rounded-full transition-all duration-700 ease-out"
+                    style={{
+                      width: `${Math.min(whoopData.recovery_score, 100)}%`,
+                      background: whoopData.recovery_score >= 67 ? '#22c55e' : whoopData.recovery_score >= 34 ? '#f59e0b' : '#ef4444',
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {whoopData.day_strain != null && (
+              <div className="bg-base rounded-2xl p-3.5">
+                <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Strain</p>
+                <p className="text-xl font-extrabold">
+                  {Number(whoopData.day_strain).toFixed(1)}
+                  <span className="text-xs text-slate-500 font-medium ml-0.5">/21</span>
+                </p>
+                <div className="w-full bg-surface-elevated rounded-full h-1.5 mt-2">
+                  <div
+                    className="h-1.5 rounded-full transition-all duration-700 ease-out"
+                    style={{
+                      width: `${Math.min((whoopData.day_strain / 21) * 100, 100)}%`,
+                      background: '#06b6d4',
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {whoopData.hrv_rmssd != null && (
+              <div className="bg-base rounded-2xl p-3.5">
+                <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">HRV</p>
+                <p className="text-xl font-extrabold">
+                  {Math.round(whoopData.hrv_rmssd)}
+                  <span className="text-xs text-slate-500 font-medium ml-0.5">ms</span>
+                </p>
+              </div>
+            )}
+
+            {whoopData.resting_hr != null && (
+              <div className="bg-base rounded-2xl p-3.5">
+                <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Resting HR</p>
+                <p className="text-xl font-extrabold">
+                  {Math.round(whoopData.resting_hr)}
+                  <span className="text-xs text-slate-500 font-medium ml-0.5">bpm</span>
+                </p>
+              </div>
+            )}
+
+            {whoopData.sleep_duration_min != null && (
+              <div className="bg-base rounded-2xl p-3.5">
+                <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Sleep</p>
+                <p className="text-xl font-extrabold">
+                  {Math.floor(whoopData.sleep_duration_min / 60)}h {whoopData.sleep_duration_min % 60}m
+                </p>
+              </div>
+            )}
+
+            {whoopData.calories_burned != null && (
+              <div className="bg-base rounded-2xl p-3.5">
+                <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Burned</p>
+                <p className="text-xl font-extrabold">
+                  {whoopData.calories_burned}
+                  <span className="text-xs text-slate-500 font-medium ml-0.5">kcal</span>
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}

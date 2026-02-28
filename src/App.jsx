@@ -9,6 +9,7 @@ import Trends from './pages/Trends'
 import BodyWeight from './pages/BodyWeight'
 import Settings from './pages/Settings'
 import Supplements from './pages/Supplements'
+import WhoopCallback from './pages/WhoopCallback'
 import { useAuth } from './contexts/AuthContext'
 
 export default function App() {
@@ -26,6 +27,7 @@ export default function App() {
           <Route path="/body" element={<ProtectedRoute><BodyWeight /></ProtectedRoute>} />
           <Route path="/supplements" element={<ProtectedRoute><Supplements /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+          <Route path="/whoop/callback" element={<ProtectedRoute><WhoopCallback /></ProtectedRoute>} />
         </Routes>
       </main>
       {user && <BottomNav />}

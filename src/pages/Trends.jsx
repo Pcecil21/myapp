@@ -3,6 +3,7 @@ import { format, subDays, startOfWeek } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { getAllExercises } from '../lib/workoutProgram'
+import { getWhoopTrends, getWhoopConnection } from '../lib/whoop'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
 
 export default function Trends() {
@@ -14,6 +15,10 @@ export default function Trends() {
   // Progress tab state
   const [progressExercise, setProgressExercise] = useState('')
   const [progressData, setProgressData] = useState([])
+
+  // Whoop tab state
+  const [whoopTrends, setWhoopTrends] = useState([])
+  const [whoopConnected, setWhoopConnected] = useState(false)
 
   const allExercises = getAllExercises()
 
@@ -63,6 +68,20 @@ export default function Trends() {
         byWeek[ws].volume += (Number(e.weight) || 0) * (Number(e.reps) || 0)
       })
       setVolumeData(Object.values(byWeek))
+    }
+
+    // Load Whoop trends
+    const connected = await getWhoopConnection(user.id)
+    setWhoopConnected(connected)
+    if (connected) {
+      const whoopData = await getWhoopTrends(user.id, 14)
+      setWhoopTrends(whoopData.map(d => ({
+        ...d,
+        label: format(new Date(d.date + 'T12:00:00'), 'MMM d'),
+        recovery_score: d.recovery_score != null ? Math.round(d.recovery_score) : null,
+        hrv_rmssd: d.hrv_rmssd != null ? Math.round(d.hrv_rmssd) : null,
+        day_strain: d.day_strain != null ? Number(Number(d.day_strain).toFixed(1)) : null,
+      })))
     }
   }
 
@@ -116,6 +135,7 @@ export default function Trends() {
           { id: 'macros', label: 'Macros' },
           { id: 'volume', label: 'Volume' },
           { id: 'progress', label: 'Progress' },
+          ...(whoopConnected ? [{ id: 'whoop', label: 'Whoop' }] : []),
         ].map(t => (
           <button
             key={t.id}
@@ -298,6 +318,77 @@ export default function Trends() {
               <p className="text-slate-500 text-sm">Select an exercise to view weight progression across weeks.</p>
             </div>
           )}
+        </div>
+      )}
+
+      {tab === 'whoop' && whoopConnected && (
+        <div className="space-y-4">
+          {/* Recovery Trend */}
+          <div className="bg-surface rounded-3xl p-5 border border-surface-border">
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-10 h-10 rounded-xl bg-success/10 flex items-center justify-center">
+                <svg className="w-5 h-5 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="font-bold text-[15px]">Recovery Score</h2>
+                <p className="text-xs text-slate-500">Last 14 days</p>
+              </div>
+            </div>
+            {whoopTrends.length > 0 ? (
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={whoopTrends}>
+                  <XAxis dataKey="label" tick={{ fill: '#64748b', fontSize: 10 }} tickLine={false} axisLine={false} interval={1} />
+                  <YAxis tick={{ fill: '#64748b', fontSize: 10 }} tickLine={false} axisLine={false} width={35} domain={[0, 100]} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Bar
+                    dataKey="recovery_score"
+                    name="Recovery"
+                    radius={[6, 6, 0, 0]}
+                    fill="#22c55e"
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-center text-sm text-slate-500 py-12">No recovery data available yet.</p>
+            )}
+          </div>
+
+          {/* HRV + Strain Trend */}
+          <div className="bg-surface rounded-3xl p-5 border border-surface-border">
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
+                <svg className="w-5 h-5 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="font-bold text-[15px]">HRV & Strain</h2>
+                <p className="text-xs text-slate-500">Last 14 days</p>
+              </div>
+            </div>
+            {whoopTrends.length > 0 ? (
+              <>
+                <ResponsiveContainer width="100%" height={220}>
+                  <LineChart data={whoopTrends}>
+                    <XAxis dataKey="label" tick={{ fill: '#64748b', fontSize: 10 }} tickLine={false} axisLine={false} interval={1} />
+                    <YAxis yAxisId="hrv" tick={{ fill: '#64748b', fontSize: 10 }} tickLine={false} axisLine={false} width={35} />
+                    <YAxis yAxisId="strain" orientation="right" tick={{ fill: '#64748b', fontSize: 10 }} tickLine={false} axisLine={false} width={30} domain={[0, 21]} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Line yAxisId="hrv" type="monotone" dataKey="hrv_rmssd" name="HRV (ms)" stroke="#60a5fa" strokeWidth={2.5} dot={false} connectNulls />
+                    <Line yAxisId="strain" type="monotone" dataKey="day_strain" name="Strain" stroke="#f59e0b" strokeWidth={2.5} dot={false} connectNulls />
+                  </LineChart>
+                </ResponsiveContainer>
+                <div className="flex justify-center gap-5 mt-4">
+                  <span className="flex items-center gap-2 text-xs text-slate-400 font-medium"><span className="w-3 h-3 rounded-full" style={{ background: '#60a5fa' }} />HRV</span>
+                  <span className="flex items-center gap-2 text-xs text-slate-400 font-medium"><span className="w-3 h-3 rounded-full" style={{ background: '#f59e0b' }} />Strain</span>
+                </div>
+              </>
+            ) : (
+              <p className="text-center text-sm text-slate-500 py-12">No HRV or strain data available yet.</p>
+            )}
+          </div>
         </div>
       )}
 
